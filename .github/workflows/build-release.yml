@@ -14,10 +14,19 @@ on:
         description: "Release tag to create (e.g. v0.7.0-build1). Leave blank to use a date tag."
         required: false
         default: ""
+      ref:
+        description: "Git ref or commit SHA to build. Leave blank to use the triggering commit."
+        required: false
+        default: ""
   workflow_call:
     inputs:
       tag:
         description: "Release tag to create"
+        required: false
+        type: string
+        default: ""
+      ref:
+        description: "Git ref or commit SHA to build"
         required: false
         type: string
         default: ""
@@ -29,8 +38,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve checkout ref
+        id: checkout-ref
+        env:
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          if [ -n "$REQUESTED_REF" ]; then
+            echo "ref=$REQUESTED_REF" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "ref=$GITHUB_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.checkout-ref.outputs.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -62,11 +86,13 @@ jobs:
 
       - name: Resolve release tag
         id: tag
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "$REQUESTED_TAG" ]; then
+            echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           else
             snap=$(bun -e "console.log(require('./pins.json').dataSnapshotDate)")
             echo "tag=build-${snap}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
@@ -74,14 +100,27 @@ jobs:
 
       - name: Compute checksums
         run: |
-          cd dist
-          sha256sum context1337-*.zip > SHA256SUMS.txt
-          cat SHA256SUMS.txt
+          bun - <<'EOF'
+          import { createHash } from "node:crypto"
+          import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+          import { join } from "node:path"
+
+          const entries = readdirSync("dist").filter((name) => /^context1337-.*\.zip$/.test(name)).sort()
+          if (entries.length === 0) throw new Error("no release zips found")
+
+          const lines = entries.map((name) => {
+            const hash = createHash("sha256").update(readFileSync(join("dist", name))).digest("hex")
+            return `${hash}  ${name}`
+          })
+          writeFileSync(join("dist", "SHA256SUMS.txt"), `${lines.join("\n")}\n`)
+          console.log(lines.join("\n"))
+          EOF
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ steps.checkout-ref.outputs.ref }}
           name: ${{ steps.tag.outputs.tag }}
           body: |
             Automated context1337 (AboutSecurity MCP) build.
