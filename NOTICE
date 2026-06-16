@@ -1,0 +1,37 @@
+context1337-release
+====================
+
+This repository is an automated build-and-release pipeline. It does NOT contain
+upstream source code; it clones pinned upstream commits at build time, applies a
+small security patch, compiles, and publishes the resulting binaries + data as
+GitHub Release artifacts.
+
+Upstream sources (cloned at build time — see pins.json for exact commits)
+-------------------------------------------------------------------------
+
+  * context1337  — https://github.com/wgpsec/context1337
+      The `absec` MCP server (Go). Compiled here for multiple platforms.
+
+  * AboutSecurity — https://github.com/wgpsec/AboutSecurity
+      The pentest knowledge data set (skills / Dic / Payload / Vuln) that is
+      indexed into builtin.db (FTS5) and bundled alongside the binary.
+
+Both upstream repositories are authored by wgpsec. At the time this pipeline was
+created, neither upstream repository carried an explicit LICENSE file. This
+pipeline redistributes built artifacts derived from those sources for
+interoperability/convenience; it claims no ownership of the upstream work.
+Downstream users must confirm the upstream licensing terms with wgpsec before
+relying on these artifacts. If wgpsec requests removal or adds license terms,
+this pipeline and its releases should be updated accordingly.
+
+Modification applied by this pipeline
+-------------------------------------
+
+  * Loopback-binding security patch (build.ts:patchLoopbackBinding):
+    upstream `cmd/absec/main.go` hardcodes `http.ListenAndServe(":port")`, which
+    binds 0.0.0.0 on every interface. The patch adds a `--host` flag defaulting
+    to 127.0.0.1 so an auto-launched absec is not exposed on the LAN by default.
+    No other source modification is made.
+
+The build recipe (clone → patch → python FTS index → CGO_ENABLED=0 cross-compile
+→ assemble + zip) mirrors the upstream build/Dockerfile.

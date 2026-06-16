@@ -1,0 +1,103 @@
+name: build-release
+
+# Cross-compiles absec for all platforms on a single ubuntu runner (pure-Go,
+# CGO_ENABLED=0), runs the post-build MCP gate, and publishes per-platform zips
+# as a GitHub Release. Triggered by a version tag, by a manual dispatch, or by
+# the track-upstream workflow (via workflow_call) after it bumps pins.json.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (e.g. v0.7.0-build1). Leave blank to use a date tag."
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to create"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write   # create releases + (for track-upstream) push the pins bump
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Read pins (for the release notes)
+        id: pins
+        run: |
+          echo "ctx_commit=$(bun -e "console.log(require('./pins.json').context1337.commit)")" >> "$GITHUB_OUTPUT"
+          echo "abs_commit=$(bun -e "console.log(require('./pins.json').aboutsecurity.commit)")" >> "$GITHUB_OUTPUT"
+          echo "snap=$(bun -e "console.log(require('./pins.json').dataSnapshotDate)")" >> "$GITHUB_OUTPUT"
+
+      - name: Build all platforms (clone pinned -> patch -> FTS index -> cross-compile -> zip)
+        run: bun run build.ts --zip
+
+      - name: Verify release gate (boot absec + /health + MCP tools/list)
+        run: bun run verify.ts linux-amd64
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            snap=$(bun -e "console.log(require('./pins.json').dataSnapshotDate)")
+            echo "tag=build-${snap}-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute checksums
+        run: |
+          cd dist
+          sha256sum context1337-*.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body: |
+            Automated context1337 (AboutSecurity MCP) build.
+
+            Upstream pins:
+            - context1337: ${{ steps.pins.outputs.ctx_commit }}
+            - AboutSecurity: ${{ steps.pins.outputs.abs_commit }}
+            - data snapshot date: ${{ steps.pins.outputs.snap }}
+
+            Each `context1337-<platform>.zip` unpacks to a `context1337/` dir
+            containing the patched `absec` binary + the full AboutSecurity data
+            knowledge base (skills / Dic / Payload / Vuln + builtin.db FTS index).
+            The binary binds 127.0.0.1 by default (loopback security patch).
+
+            Verify downloads against SHA256SUMS.txt.
+          files: |
+            dist/context1337-*.zip
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true

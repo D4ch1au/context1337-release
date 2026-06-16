@@ -1,0 +1,15 @@
+{
+  "_comment": "Pinned upstream refs for the context1337 (AboutSecurity MCP) release build. build.ts clones these exact commits; track-upstream.yml bumps them when wgpsec ships new commits. Bump commit + dataSnapshotDate together.",
+  "context1337": {
+    "repo": "https://github.com/wgpsec/context1337.git",
+    "ref": "v0.7.0",
+    "commit": "ed64ffeeb03ff23bcddb5620733d2d96542021d1"
+  },
+  "aboutsecurity": {
+    "repo": "https://github.com/wgpsec/AboutSecurity.git",
+    "ref": "master",
+    "commit": "ef9d0cd14cc21d1404b2fd3fe1405b6b4b9bacdb"
+  },
+  "dataSnapshotDate": "2026-06-15",
+  "dataDirs": ["skills", "Dic", "Payload", "Vuln"]
+}

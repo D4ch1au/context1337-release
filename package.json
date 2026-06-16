@@ -1,0 +1,13 @@
+{
+  "name": "context1337-release",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Automated cross-platform release builder for context1337 (wgpsec AboutSecurity knowledge MCP, binary `absec`). Tracks upstream, cross-compiles, verifies, and publishes per-platform zips for downstream tools to fetch.",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts --zip",
+    "build:current": "bun run build.ts",
+    "verify": "bun run verify.ts",
+    "bump": "bun run bump-pins.ts"
+  }
+}

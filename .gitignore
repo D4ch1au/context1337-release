@@ -1,0 +1,5 @@
+# build scratch: upstream clones + python venv + intermediate FTS index
+.build-work/
+# release output (absec binaries + data zips); produced by build.ts, published to Releases
+dist/
+node_modules/
