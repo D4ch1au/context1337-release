@@ -8,9 +8,9 @@
   "aboutsecurity": {
     "repo": "https://github.com/wgpsec/AboutSecurity.git",
     "ref": "master",
-    "commit": "1b027e1d71027e9f9fa414de0826342c3b7ea4e9"
+    "commit": "db4573f6ca2ab4dae487edc5ddf977624518fcba"
   },
-  "dataSnapshotDate": "2026-09-21",
+  "dataSnapshotDate": "2026-10-05",
   "dataDirs": [
     "skills",
     "Dic",
